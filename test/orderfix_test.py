@@ -188,11 +188,13 @@ over a free span, with pinholes at x=0 and x=ℓ.
 
 The governing equation is [Skutch, 1897]::
 
-    w_tt + 2 V0 w_xt + (V0² - T/m) w_xx = 0   (*)
+    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx = 0   (*)
     w(x=0) = w(x=ℓ) = 0
 
 where the subscripts indicate partial differentiation.
-V0 is the axial drive velocity, and T is the tension applied at the ends.
+V0 is the axial drive velocity, T is the tension applied at the ends,
+and ρ is the linear density (SI unit [ρ] = kg / m) of the string.
+
 The function  w  describes the transverse deflection of the string.
 
 As an IBVP, two initial conditions are required for w to make the solution unique.
@@ -224,29 +226,29 @@ where  h  is a characteristic deflection (of arbitrary value), SI unit [s].
 Solving for the original dimensional variables, plugging in the solutions to (*),
 applying (**) and (***), and then omitting the prime from the notation, we have::
 
-    (h/τ²) w_tt + (h/(τℓ)) 2 V0 w_xt + (h/ℓ²) (V0**2 - T/m) w_xx = 0
+    (h/τ²) w_tt + (h/(τℓ)) 2 V0 w_xt + (h/ℓ²) (V0**2 - T/ρ) w_xx = 0
     w(x=0) = w(x=1) = 0
 
 Finally, multiplying by  τ²/h  gives the dimensionless equation::
 
-    w_tt + (2 τ/ℓ V0) w_xt + (τ²/ℓ²) (V0² - T/m) w_xx = 0
+    w_tt + (2 τ/ℓ V0) w_xt + (τ²/ℓ²) (V0² - T/ρ) w_xx = 0
 
 
 The last term suggests that a convenient value for τ is obtained by choosing::
 
-    ℓ/τ := sqrt(T/m)
+    ℓ/τ := sqrt(T/ρ)
 
 which gives::
 
-    τ = ℓ / sqrt(T/m)
+    τ = ℓ / sqrt(T/ρ)
 
 With this choice for τ, we have::
 
-    w_tt + (2 V0 / sqrt(T/m)) w_xt + (V0² / (T/m) - 1) w_xx = 0
+    w_tt + (2 V0 / sqrt(T/ρ)) w_xt + (V0² / (T/ρ) - 1) w_xx = 0
 
 This in turn suggests that it is convenient to define a dimensionless axial velocity as::
 
-    c := V0 / sqrt(T/m)
+    c := V0 / sqrt(T/ρ)
 
 finally obtaining::
 
@@ -400,14 +402,80 @@ of the problem parameter c.
 
 **This** is the problem that `orderfix` solves:
 
-It re-orders the eigenvalue data for different values of c, so that we can draw connected curves as c varies.
-
-
-**Notes:**
+    `orderfix` re-orders the eigenvalue data for different values of c, so that we can draw connected curves as we vary c,
+    by simply connecting the points in the same column in the re-ordered data.
 
 Of the order-fixing algorithms discussed in [Jeronen, 2011], this library implements only the "null"
-algorithm that simply pairs off the closest points; the Taylor prediction based and modal assurance
+algorithm that simply pairs off the closest points. The Taylor prediction based and modal assurance
 criterion (MAC) based algorithms are not implemented here. (Often the "null" algorithm works well enough.)
+
+
+**Generalization of the model:**
+
+It is easy to generalize this model to the case of the ideal string with internal damping [Jeronen, 2011].
+
+The problem now reads::
+
+    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx + α/ρ (w_t + V0 w_x) = 0
+    w(x=0) = w(x=ℓ) = 0
+
+where α is an empirical damping coefficient describing, e.g., viscous losses inside the string material.
+
+(To instead describe the resistance of a surrounding medium (low-speed air resistance, directly proportional to velocity),
+the term  α/ρ V0 w_x  should be dropped, assuming the air mass does not axially move along with the string.)
+
+This again leads to the finite element discretization::
+
+    ∑ ( s² M + s C + K ) v = 0
+
+with the same M, but with slightly different C and K::
+
+    M = M2
+    C = 2 c M1 + β M2
+    K = (c² - 1) M0 + β c M1
+
+where β is a "dimensionless version of α/ρ".
+
+This is the form of the problem solved by this routine.
+
+
+Shortcut to see this: terms with _tt are summed into M, terms with _t into C, terms with no time differentiation into K.
+On the RHS, terms with _xx produce M0, terms with _x produce M1, and terms with no space differentiation produce M2.
+
+What is the expression of β? Carrying the new terms through the calculation gives::
+    α/ρ w_t + α/ρ V_0 w_x          # original form
+    α/ρ h/τ w_t + α/ρ V0 h/ℓ w_x   # expressed in dimensionless x', t', w'; prime omitted
+    α/ρ τ w_t + α/ρ τ V0 τ/ℓ w_x   # after multiplication by τ²/h
+    α/ρ τ w_t + α/ρ τ c w_x        # after using  c = V0 τ/ℓ  (with our choice for τ)
+    β w_t + β c w_x                # defining the dimensionless damping coefficient β = α/ρ τ
+
+Explicitly, we have::
+    β = α/ρ τ = (α　ℓ) / (ρ sqrt(T/ρ))
+
+In our problem, ρ is the linear density of the string. In the SI system,  [ρ] = kg / m.
+Thus, the SI unit of [α] = kg / (m s).
+
+With some trivial algebraic manipulation, we identify this unit as the poiseuille, defined as
+PI = Pa s::
+
+    N    = kg m / s²
+    Pa   = N/m² = kg / (m s²)
+    Pa s = kg / (m s)
+
+Thus α represents a dynamic viscosity.
+
+
+**CAUTION:**
+
+The eigenfrequency spectrum is countably infinite, the discretization (by necessity) is not.
+
+Some (typically half) of the computed solutions will be correct (solutions of the original continuum problem),
+and the rest will be nonsense (numerical artifacts). This is likely an aliasing effect arising from the truncation
+of the spectrum.
+
+The trick is in knowing which of the computed solutions are correct. For simple problems such as these,
+one can compare to their analytical solutions (which also helps to get some intuition for this).
+Analytical solutions (including the case with damping) are provided in [Jeronen, 2011].
 
 
 **References:**
@@ -423,17 +491,23 @@ criterion (MAC) based algorithms are not implemented here. (Often the "null" alg
 
     F. Tisseur and K. Meerbergen, The quadratic eigenvalue problem, SIAM Rev., 43 (2001), pp. 235–286.
 """
-    c  = 2.    # dimensionless axial velocity
-    n  = 10    # number of elements
-    Dx = 1./n  # length of one element
+    c  = 2.      # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
+    beta = 0.    # damping coefficient
+
+    n  = 10      # number of elements for FEM
+    Dx = 1./n    # length of one element, in units of global dimensionless x'
 
     I = np.eye(n+1)
     U = np.diag(np.ones(n), +1)
     L = np.diag(np.ones(n), -1)
 
-    M =   Dx/6.          * ( 4.*I + U + L )   #  ∫ φj φn dx          (j row, n column)
-    C =   c              * ( U - L )          #  ∫ dφn/dx φj dx
-    K = -(c**2 - 1.)/Dx  * ( 2.*I + U + L )   # -∫ dφn/dx dφj/dx dx
+    M2 = Dx/6.  * ( 4.*I + U + L )  #  ∫ φj φn dx          (j row, n column)
+    M1 = 1./2.  * (U - L)           #  ∫ dφn/dx φj dx
+    M0 = -1./Dx * ( 2.*I + U + L )  # -∫ dφn/dx dφj/dx dx
+
+    M = M2
+    C = 2.*c*M1 + beta*M2
+    K = (c**2 - 1.)*M0 + beta*c*M1
 
     # companion form
     #
