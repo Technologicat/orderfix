@@ -335,7 +335,7 @@ from the reference (local) element [0,1] to each global element, the matrices ar
 where  Δx = 1/N  is the length of one global element, and the generic matrices
 for uniformly spaced linear elements in 1D are::
 
-    M2 =  Δx/6 * ( 4 I + U + L )  #  ∫ φj φn dx          (j row, n column)
+    M2 =  Δx/6 * ( 4 I + U + L )  #  ∫ φn φj dx          (j row, n column)
     M1 =  1/2  * ( U - L )        #  ∫ dφn/dx φj dx
     M0 = -1/Δx * ( 2 I + U + L )  # -∫ dφn/dx dφj/dx dx
 
@@ -492,26 +492,29 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     F. Tisseur and K. Meerbergen, The quadratic eigenvalue problem, SIAM Rev., 43 (2001), pp. 235–286.
 """
     c  = 2.      # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
-    beta = 0.    # damping coefficient
+    beta = 0.    # dimensionless damping coefficient
 
     n  = 10      # number of elements for FEM
     Dx = 1./n    # length of one element, in units of global dimensionless x'
 
+    # building blocks for uniformly spaced linear elements in 1D
     I = np.eye(n+1)
     U = np.diag(np.ones(n), +1)
     L = np.diag(np.ones(n), -1)
 
-    M2 = Dx/6.  * ( 4.*I + U + L )  #  ∫ φj φn dx          (j row, n column)
+    # generic matrices for uniformly spaced linear elements in 1D
+    M2 = Dx/6.  * ( 4.*I + U + L )  #  ∫ φn φj dx          (j row, n column)
     M1 = 1./2.  * (U - L)           #  ∫ dφn/dx φj dx
     M0 = -1./Dx * ( 2.*I + U + L )  # -∫ dφn/dx dφj/dx dx
 
+    # our mass, gyroscopic+damping and stiffness matrices
     M = M2
     C = 2.*c*M1 + beta*M2
     K = (c**2 - 1.)*M0 + beta*c*M1
 
     # companion form
     #
-    O    = np.zeros( (n+1,n+1) )
+    O    = np.zeros_like(I)
     invM = np.linalg.inv(M)
     A    = np.array( np.bmat( [[-invM.dot(C), -invM.dot(K)],
                                [           I,            O]] ) )  # bmat() returns matrix, not ndarray
