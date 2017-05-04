@@ -357,9 +357,13 @@ in the integral (always computing it over the reference element).
 Integration introduces a factor of Δx, whereas differentiation introduces 1/Δx.
 
 The size of each matrix is (N+1)×(N+1), because for N linear elements, there are N+1
-global basis functions, including the two for the endpoints of the domain.)
+global basis functions, including the two for the endpoints of the domain.
 
-The final result is
+We can also use any other basis, such as a Fourier sine basis, for which φn = sin(n π x).
+The expressions of M, C and K above remain unchanged, once we compute the new M2, M1 and M0.)
+
+
+The final result (specifically for the linear basis) is
 
     M = Δx/6        * ( 4 I + U + L )
     C = c           * ( U - L )
@@ -436,17 +440,36 @@ criterion (MAC) based algorithms are not implemented here. (Often the "null" alg
 
 **Generalizing the model:**
 
-It is easy to account also for the case of the ideal string with internal damping [Jeronen, 2011].
+It is easy to account also for the case of the ideal string with internal damping and a linear Winkler-type
+elastic foundation [Jeronen, 2011].
 
 The original PDE problem now reads::
 
-    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx + α/ρ (w_t + V0 w_x) = 0,   0 < x < ℓ
+    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx + α/ρ (w_t + V0 w_x) + γ/ρ w = 0,   0 < x < ℓ
     w(x=0) = w(x=ℓ) = 0
 
 where α is an empirical damping coefficient describing, e.g., viscous losses inside the string material.
+Similarly, γ describes the strength of the elastic foundation.
+
 
 (To instead describe the resistance of a surrounding medium (low-speed air resistance, directly proportional to velocity),
-the term  α/ρ V0 w_x  should be dropped, assuming the air mass does not axially move along with the string.)
+the term  α/ρ V0 w_x  should be dropped, assuming the air mass does not axially move along with the string.
+
+To combine these two cases, if the air mass moves at axial free-stream velocity V∞, we can write the damping terms as::
+
+    α0/ρ (w_t + V0 w_x)  +  α∞/ρ (w_t + V∞ w_x)
+    = (α0 + α∞)/ρ w_t + (α0 V0 + α∞ V∞)/ρ w_x
+
+where α0 describes internal damping (as above), and α∞ describes the damping due to the air.)
+
+
+The dimensionless form is::
+
+    w_tt + 2 c w_xt + (c² - 1) w_xx + β w_t + β c w_x + δ w = 0,   0 < x < 1
+
+leading to::
+
+    s² W + 2 c s W_x + (c² - 1) W_xx + s β W + β c W_x + δ W = 0
 
 This again leads to the finite element discretization::
 
@@ -456,9 +479,9 @@ with the same M, but with slightly different C and K::
 
     M = M2
     C = 2 c M1 + β M2
-    K = (c² - 1) M0 + β c M1
+    K = (c² - 1) M0 + β c M1 + δ M2
 
-where β is a "dimensionless version of α/ρ".
+where β (respectively δ) is a "dimensionless version of α/ρ" (resp. of γ/ρ).
 
 This is the form of the problem solved by this routine.
 
@@ -466,18 +489,21 @@ This is the form of the problem solved by this routine.
 Shortcut to see this: terms with _tt are summed into M, terms with _t into C, terms with no time differentiation into K.
 On the RHS, terms with _xx produce M0, terms with _x produce M1, and terms with no space differentiation produce M2.
 
-What is the expression of β? Carrying the new terms through the calculation gives::
-    α/ρ w_t + α/ρ V_0 w_x          # original form
-    α/ρ h/τ w_t + α/ρ V0 h/ℓ w_x   # expressed in dimensionless x', t', w'; prime omitted
-    α/ρ τ w_t + α/ρ τ V0 τ/ℓ w_x   # after multiplication by τ²/h
-    α/ρ τ w_t + α/ρ τ c w_x        # after using  c = V0 τ/ℓ  (with our choice for τ)
-    β w_t + β c w_x                # defining the dimensionless damping coefficient β = α/ρ τ
+What are the expressions of β and δ? Carrying the new terms through the calculation gives::
+    α/ρ w_t + α/ρ V_0 w_x + γ/ρ w             # original form
+    α/ρ h/τ w_t + α/ρ V0 h/ℓ w_x + γ/ρ h w    # expressed in dimensionless x', t', w'; prime omitted
+    α/ρ τ w_t + α/ρ τ V0 τ/ℓ w_x + γ/ρ τ² w   # after multiplication by τ²/h
+    α/ρ τ w_t + α/ρ τ c w_x + γ/ρ τ² w        # after using  c = V0 τ/ℓ  (with our choice τ = ℓ / sqrt(T/ρ))
+    β w_t + β c w_x + δ w                     # defining the dimensionless coefficients β = α/ρ τ, δ = γ/ρ τ²
 
 Explicitly, we have::
     β = α/ρ τ = (α　ℓ) / (ρ sqrt(T/ρ))
+    δ = γ/ρ τ² = γ/ρ ( ℓ² / (T/ρ) ) = γ/ρ ( ρ ℓ² / T ) = γ ℓ² / T
+
 
 In our problem, ρ is the linear density of the string. In the SI system,  [ρ] = kg / m.
-Thus, the SI unit of [α] = kg / (m s).
+Thus, because β　is known to be dimensionless (to match other terms in the equation),
+the SI unit of [α] = kg / (m s).
 
 With some trivial algebraic manipulation, we identify this unit as the poiseuille, defined as
 PI = Pa s::
@@ -487,6 +513,9 @@ PI = Pa s::
     Pa s = kg / (m s)
 
 Thus α represents a dynamic viscosity.
+
+As for γ, the tension [T] = N and span length [ℓ] = m, so [γ] = N/m² = Pa; it is the Young's modulus
+of the elastic foundation material.
 
 
 **CAUTION:**
@@ -515,26 +544,71 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
 
     F. Tisseur and K. Meerbergen, The quadratic eigenvalue problem, SIAM Rev., 43 (2001), pp. 235–286.
 """
-    c    = 2.    # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
-    beta = 0.    # dimensionless damping coefficient
+    c     = 0.2   # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
+    beta  = 1.    # dimensionless damping coefficient
+    delta = 0.    # dimensionless elastic foundation coefficient
 
-    n    = 10    # number of elements for FEM
-    Dx   = 1./n  # length of one element, in units of global dimensionless x'
+    n    = 100    # number of elements for FEM
+    Dx   = 1./n   # if using linear elements: length of one element, in units of global dimensionless x'
 
-    # building blocks for uniformly spaced linear elements in 1D
-    I = np.eye(n+1)
-    U = np.diag(np.ones(n), +1)
-    L = np.diag(np.ones(n), -1)
+    n_vis = 20     # how many (lowest by magnitude) eigenfrequencies to draw
 
-    # generic matrices for uniformly spaced linear elements in 1D
-    M2 = Dx/6.  * ( 4.*I + U + L )  #  ∫ φn φj dx          (j row, n column)
-    M1 = 1./2.  * (U - L)           #  ∫ dφn/dx φj dx
-    M0 = -1./Dx * ( 2.*I + U + L )  # -∫ dφn/dx dφj/dx dx
+
+#    # uniformly spaced linear elements
+#    #
+#    I = np.eye(n+1)
+#    U = np.diag(np.ones(n), +1)
+#    L = np.diag(np.ones(n), -1)
+#    M2 = Dx/6.  * ( 4.*I + U + L )  #  ∫ φn φj dx          (j row, n column)
+#    M1 = 1./2.  * (U - L)           #  ∫ dφn/dx φj dx
+#    M0 = -1./Dx * ( 2.*I + U + L )  # -∫ dφn/dx dφj/dx dx
+
+
+    # Fourier basis, φk = sin(k π x),  k = 1, 2, ...   (as in [Jeronen, 2011])
+    #
+    # These basis functions have support on all of 0 < x < 1, but they are L²-orthogonal, leading to M2 and M0 being diagonal.
+    # M1 will be dense (50% fill) and skew-symmetric.
+    #
+    # To compute the matrices symbolically, use this:
+    #
+    # from sympy import symbols, pi, sin, cos, integrate, diff, pprint
+    # n,j = symbols('n,j', integer=True, positive=True)
+    # x   = symbols('x', real=True)
+    # M2 =  integrate( sin(n*pi*x) * sin(j*pi*x), (x, 0, 1) )
+    # M1 =  integrate( diff(sin(n*pi*x),x) * sin(j*pi*x), (x, 0, 1) )
+    # M0 = -integrate( diff(sin(n*pi*x),x) * diff(sin(j*pi*x),x), (x, 0, 1) )
+    # for M in (M2,M1,M0):
+    #     print(M)
+    #     pprint(M)
+
+    # Piecewise((1/2, Eq(j, n)), (0, True))
+    #
+    M2 = np.diag( 1./2. * np.ones(n) )
+
+    # -pi*n*Piecewise((0, Eq(j, n)), (-j/(pi*j**2 - pi*n**2), True)) + pi*n*Piecewise((0, Eq(j, n)), (-(-1)**j*(-1)**n*j/(pi*j**2 - pi*n**2), True))
+    #
+    jj  = np.arange(1,n+1)  # in the formula, n and j are 1-based
+    nn  = np.arange(1,n+1)
+    J,N = np.meshgrid(jj,nn, indexing='ij')   # row,column of each matrix element, 1-based
+    with np.errstate(divide='ignore', invalid='ignore'):  # we handle the diagonal separately afterward
+        M1 = J * N * ( 1. - (-1.)**J * (-1.)**N ) / ( J**2 - N**2 )
+    np.fill_diagonal(M1, 0)
+
+    # -pi**2*j*n*Piecewise((1/2, Eq(j, n)), (0, True))
+    #
+    M0 = -np.diag( 1./2. * np.pi**2 * np.arange(1,n+1)**2 )
+
+    I = np.eye(n)
+
 
     # our mass, gyroscopic+damping and stiffness matrices
+    #
+    # (in the basis being used)
+    #
     M = M2
     C = 2.*c*M1 + beta*M2
-    K = (c**2 - 1.)*M0 + beta*c*M1
+    K = (c**2 - 1.)*M0 + beta*c*M1 + delta*M2
+
 
     # companion form
     #
@@ -543,7 +617,7 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     O    = np.zeros_like(I)
     invM = np.linalg.inv(M)
     A    = np.array( np.bmat( [[-invM.dot(C), -invM.dot(K)],
-                               [           I,            O]] ) )  # bmat() returns matrix, not ndarray
+                               [           I,            O]] ), dtype=np.complex128 )  # bmat() returns matrix, not ndarray. We also want to force complex dtype.
 
     # TODO: vary c in a loop, save results to array, run orderfix on them
 
@@ -565,11 +639,15 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     # numerical prettification
     #
     def kill_almost_zeros(z, tol=1e-10):
-        z  = z.copy()  # real() and imag() only create views, so let's make our own copy
-        zr = np.real(z)
-        zi = np.imag(z)
+        # ensure complex128 to avoid "ValueError: assignment destination is read-only" if input happens to have real dtype
+        my_z = np.empty( z.shape, dtype=np.complex128 )
+        my_z[:] = z
+
+        zr = np.real(my_z)
+        zi = np.imag(my_z)
         zr[ np.abs(zr) < tol ] = 0.
         zi[ np.abs(zi) < tol ] = 0.
+
         return zr + 1j*zi
 
     def sort_by_magnitude(z):
@@ -579,9 +657,64 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
 
     s = sort_by_magnitude(kill_almost_zeros(s))
 
+
+    # For comparison: analytical solution.
+    #
+    # Here we use the following result from [Jeronen, 2011]. Note that the coefficients
+    # use notation different from the one in this script.
+    #
+    # For the boundary-value problem
+    #
+    #     w_tt + 2 b w_xt + c w_xx + A1 w_t + A2 w_x + B w  =  0,   0 < x < 1     (37), p. 68
+    #     w(x=0) = w(x=1) = 0                                                     ((16), p. 58; repeated on p. 68)
+    #
+    # the eigenfrequency spectrum of free vibrations is given by
+    #
+    #     s* = c [s - β/2] = c [ ±sqrt( γ - ω² ) - β/2 ]     (53), p. 72
+    #
+    # where
+    #     γ = (1/4) ( β² - κ² - 4 B )                        (45), p. 70
+    #     β = A1 c - A2 b                                    (41), p. 69
+    #     κ = A2 sqrt(b² - c)                                (42), p. 69
+    #     ω = - k π　/ sqrt(b² - c) = - k π ℓ / (C τ)         (29), p. 63   (k = 1, 2, ...)
+    #
+    # In (53), "s" refers to the eigenfrequency in transformed coordinates,
+    # which were used to help solve the problem; "s*" denotes the "true s"
+    # in (x,t) coordinates.
+    #
+    # In (29), C = sqrt(T/ρ) (in the reference, the symbol "m" is used for our "ρ").
+    #
+    #
+    # In our notation, the PDE is
+    #
+    #    w_tt + 2 c w_xt + (c² - 1) w_xx + β w_t + β c w_x + δ w = 0,   0 < x < 1
+    #
+    # We calculate (LHS notation of [Jeronen, 2011]; RHS our notation)
+    #
+    # sqrt(b² - c)　← sqrt(c² - (c² - 1)) = sqrt(1) = 1
+    #            β ← β (c² - 1) - β c² = -β
+    #            κ ← β c
+    #            ω ← -k π
+    #            γ ← (1/4) ( β² - β² c² - 4 δ ) = (1/4) ( β² (1 - c²) - 4 δ )
+    #
+    # Thus the exact eigenfrequency spectrum is
+    #
+    #           s* ← (c² - 1) [ β/2 ± sqrt(  (1/4) ( β² (1 - c²) - 4 δ ) - k² π²  ) ]
+    #
+    s_analytical = np.empty( (2*n,), dtype=np.complex128 )
+    k = np.arange(n)
+    tmp = np.sqrt( 0j + (1./4.) * ( beta**2 * (1. - c**2) - 4.*delta ) - (k+1)**2 * np.pi**2  )  # 0j+...: force complex input to sqrt()
+    s_analytical[2*k]     = (c**2 - 1.) * (beta/2. + tmp)
+    s_analytical[2*k + 1] = (c**2 - 1.) * (beta/2. - tmp)
+
+
+    print(s_analytical[:n_vis])
+    print(s[:n_vis])
+
     import matplotlib.pyplot as plt
     plt.figure(1)
-    plt.plot( np.real(s), np.imag(s), 'ko' )
+    plt.plot( np.real(s[:n_vis]), np.imag(s[:n_vis]), 'ko' )
+    plt.plot( np.real(s_analytical[:n_vis]), np.imag(s_analytical[:n_vis]), 'bo', alpha=0.5 )
     plt.xlabel( r'$\mathrm{Re}\,s$' )
     plt.ylabel( r'$\mathrm{Im}\,s$' )
     plt.show()
