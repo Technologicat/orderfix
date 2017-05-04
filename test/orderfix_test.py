@@ -181,15 +181,15 @@ def moving_ideal_string():
     """Usage example.
 
 
-**Long** explanation:
+**Long** explanation (with some utf-8 math thrown in):
 
 We consider an ideal string (no bending stiffness), axially moving
-over a free span, with pinholes at x=0 and x=L.
+over a free span, with pinholes at x=0 and x=ℓ.
 
 The governing equation is [Skutch, 1897]::
 
-    w_tt + 2 V0 w_xt + (V0**2 - T/m) w_xx = 0   (*)
-    w(x=0) = w(x=L) = 0
+    w_tt + 2 V0 w_xt + (V0² - T/m) w_xx = 0   (*)
+    w(x=0) = w(x=ℓ) = 0
 
 where the subscripts indicate partial differentiation.
 V0 is the axial drive velocity, and T is the tension applied at the ends.
@@ -202,18 +202,18 @@ class of possible solutions as a whole.
 
 Let us define dimensionless coordinates as::
 
-    t' := t / tau
-    x' := x / L
+    t' := t / τ
+    x' := x / ℓ
 
-where  tau  is a characteristic time (of arbitrary value), SI unit [s],
-and  L  is the length of the free span, SI unit [m]. (Also the characteristic length
-is in principle arbitrary, but for this problem, it is convenient to choose its value as L,
+where  τ  is a characteristic time (of arbitrary value), SI unit [s],
+and  ℓ  is the length of the free span, SI unit [m]. (Also the characteristic length
+is in principle arbitrary, but for this problem, it is convenient to choose its value as ℓ,
 since then the dimensionless space domain is always  0 < x' < 1.)
 
 By the chain rule,::
 
-    w_t = w_t' t'_t = w_t' * (1/tau)   (**)
-    w_x = w_x' x'_x = w_x' * (1/L)     (***)
+    w_t = w_t' t'_t = w_t' * (1/τ)   (**)
+    w_x = w_x' x'_x = w_x' * (1/ℓ)   (***)
 
 Now define the dimensionless deflection::
 
@@ -224,35 +224,35 @@ where  h  is a characteristic deflection (of arbitrary value), SI unit [s].
 Solving for the original dimensional variables, plugging in the solutions to (*),
 applying (**) and (***), and then omitting the prime from the notation, we have::
 
-    (h/tau**2) w_tt + (h/(tau L)) 2 V0 w_xt + (h/L**2) (V0**2 - T/m) w_xx = 0
+    (h/τ²) w_tt + (h/(τℓ)) 2 V0 w_xt + (h/ℓ²) (V0**2 - T/m) w_xx = 0
     w(x=0) = w(x=1) = 0
 
-Finally, multiplying by (tau**2 / h) gives the dimensionless equation::
+Finally, multiplying by  τ²/h  gives the dimensionless equation::
 
-    w_tt + (2 tau V0 / L) w_xt + (tau**2 / L**2) (V0**2 - T/m) w_xx = 0
+    w_tt + (2 τ/ℓ V0) w_xt + (τ²/ℓ²) (V0² - T/m) w_xx = 0
 
 
-The last term suggests that a convenient choice for tau is::
+The last term suggests that a convenient value for τ is obtained by choosing::
 
-    L/tau := sqrt(T/m)
+    ℓ/τ := sqrt(T/m)
 
 which gives::
 
-    tau = L / sqrt(T/m)
+    τ = ℓ / sqrt(T/m)
 
-With this tau, we have::
+With this choice for τ, we have::
 
-    w_tt + (2 V0 / sqrt(T/m)) w_xt + (V0**2 / (T/m) - 1) w_xx = 0
+    w_tt + (2 V0 / sqrt(T/m)) w_xt + (V0² / (T/m) - 1) w_xx = 0
 
-This suggests that it is convenient to define a dimensionless axial velocity as::
+This in turn suggests that it is convenient to define a dimensionless axial velocity as::
 
     c := V0 / sqrt(T/m)
 
-obtaining::
+finally obtaining::
 
-    w_tt + 2 c w_xt + (c**2 - 1) w_xx = 0
+    w_tt + 2 c w_xt + (c² - 1) w_xx = 0
 
-which leaves just one problem parameter, c, which we may sweep to make a parametric study
+We have remaining just one problem parameter, c, which we may sweep to make a parametric study
 of this problem.
 
 
@@ -270,7 +270,7 @@ real-valued solutions of (*).
 
 We obtain::
 
-    s**2 W + 2 c s W_x + (c**2 - 1) W_xx = 0   (a)
+    s² W + 2 c s W_x + (c² - 1) W_xx = 0   (a)
 
 
 For an analytical solution, because (a) is a linear ODE with constant coefficients,
@@ -280,7 +280,7 @@ its solution is, generally speaking, a sum of complex exponential terms::
 
 where k1 and k2 are the roots of the characteristic polynomial (here, for simplicity, assumed distinct)::
 
-    s**2 + 2 c s k + (c**2 - 1) k**2 = 0       (c)
+    s² + 2 c s k + (c² - 1) k² = 0       (c)
 
 Once this is solved (for k, giving two roots k1 and k2 in terms of s), the constants A0 and A1
 can be determined from the boundary conditions, by requiring W(0) = W(1) = 0 in equation (b).
@@ -291,65 +291,86 @@ Then plugging the solution to (a) will determine s.
 On the other hand, to approach this numerically, we observe that equation (a) is a
 quadratic eigenvalue problem for the pair (s,W).
 
-Let us use standard C0 finite elements. Multiply (a) by an arbitrary admissible test function  psi,
-integrate over the domain (0 < x < 1).
+Let us use standard C0 finite elements. Multiply (a) by an arbitrary test function ψ,
+and integrate over the domain (0 < x < 1):
 
-To make the equations more readable in ASCII, let us omit the integration from the notation.
-We have::
-
-    s**2 W psi + 2 c s W_x psi + (c**2 - 1) W_xx psi = 0   for all admissible psi
+    ∫　s² W ψ dx  +  ∫ 2 c s W_x ψ dx  +  ∫ (c² - 1) W_xx ψ dx  =  0   ∀ admissible ψ
 
 After integration by parts in the last term (zero Dirichlet BCs eliminate boundary term)::
 
-    s**2 W psi + 2 c s W_x psi - (c**2 - 1) W_x psi_x = 0    (d)
+    ∫ s² W ψ dx  +  ∫ 2 c s W_x ψ dx  -  ∫ (c² - 1) W_x ψ_x dx  =  0    (d)
 
-Using a basis phi1, phi2, ..., the Galerkin series for W is::
+Using a basis φ1, φ2, ... of global basis functions defined on the domain 0 < x < 1,
+the Galerkin series for W is::
 
-  W(x) := Wn phin(x)  (summation over repeated index implied)
+  W(x) := ∑ Wn φn(x)  (summation over n)
 
-where Wn are coefficients.
+where Wn are the Galerkin coefficients.
 
-Inserting this to (d), and choosing the set of test functions psi  as the set phij, gives::
+Inserting this to (d), and choosing the set of test functions ψ  as the set φj, gives::
 
-    s**2 Wn phin phij + 2 c s Wn phin_x phij - (c**2 - 1) Wn phin_x phij_x = 0
+    ∫ s² (∑ Wn φn) φj dx  +  ∫ 2 c s (∑ Wn φn_x) φj dx  - ∫ (c² - 1) (∑ Wn φn_x) φj_x dx  =  0
 
 As usual, we then exchange the order of the infinite summation and integration,
 so that the integral is taken separately of each term in the Galerkin series.
-Rearranging terms, we have::
+Rearranging, we have::
 
-    s**2 (phin phij) Wn + 2 c s (phin_x phij) Wn - (c**2 - 1) ( phin_x phij_x ) Wn = 0
+    ∑ s² Wn ∫ (φn φj) dx  +  ∑ 2 c s ∫ Wn (φn_x φj) dx  - ∑ (c² - 1) ∫ Wn (φn_x φj_x) dx  =  0
 
-Defining the mass, gyroscopic, and stiffness matrices, we can write this as::
+Defining the mass, gyroscopic, and stiffness matrices M, C and K, we can write this as::
 
-    ( s**2 M + s C + K ) v = 0
+    ∑ ( s² M + s C + K ) v = 0
 
-and  v  denotes the vector of coefficients Wn.
+and  v = (W1, W2, ..., W{N+1})  denotes the vector of Galerkin coefficients.
 
 Using a uniform grid of  N  linear elements, with affine coordinate mapping
 from the reference (local) element [0,1] to each global element, the matrices are::
 
-    M = dx/6 * ( 4 I + U + L )                  #     phi_j  *    phi_n   (j row, n column)
-    C = (2 c) * 1/2  * ( U - L )                #  (d phi_n) *    phi_j
-    K = (-(c**2 - 1)) * 1/dx * ( 2 I + U + L )  # -(d phi_j) * (d phi_n)
+    M = M2
+    C = 2 c M1
+    K = (c² - 1) M0
 
-where  dx = 1/N  is the length of one global element, and::
+where  Δx = 1/N  is the length of one global element, and the generic matrices
+for uniformly spaced linear elements in 1D are::
 
-    I = np.eye(N)
-    U = np.diag(np.ones(N-1), +1)
-    L = np.diag(np.ones(N-1), -1)
+    M2 =  Δx/6 * ( 4 I + U + L )  #  ∫ φj φn dx          (j row, n column)
+    M1 =  1/2  * ( U - L )        #  ∫ dφn/dx φj dx
+    M0 = -1/Δx * ( 2 I + U + L )  # -∫ dφn/dx dφj/dx dx
+
+where
+
+    I  = np.eye(N+1)
+    U  = np.diag(np.ones(N), +1)
+    L  = np.diag(np.ones(N), -1)
+
+(The subscript on Mj denotes the order of time differentiation in the term
+that corresponds to each of the matrices.
+
+In M1, the factors of Δx cancel. These are introduced by the change of variable
+in the integral (always computing it over the reference element).
+Integration introduces a factor of Δx, whereas differentiation introduces 1/Δx.
+
+The size of each matrix is (N+1)×(N+1), because for N elements, there are N+1
+global basis functions, including the two for the endpoints of the domain.)
+
+The final result is
+
+    M = Δx/6        * ( 4 I + U + L )
+    C = c           * ( U - L )
+    K = (1 - c²)/Δx * ( 2 I + U + L )
 
 
 To solve this quadratic eigenvalue problem, following [Tisseur and Meerbergen, 2001],
 we use the first companion linearization. Let::
 
-    Q(s) := s**2 M + s C + K
+    Q(s) := s² M + s C + K
 
     L(s) := s / M 0 \ + /  C K \
               \ 0 I /   \ -I 0 /
 
 and, denoting the original eigenvector by  v  (this is the same v as above)::
 
-    z := / s*v \
+    z := / s v \
          \   v /
 
 Then::
@@ -365,8 +386,8 @@ Actually, since our system is small, we may go one step further, and invert M nu
 In [Jeronen, 2011, p. 172 and 184] it is observed that the solutions  s  of  L(s) z = 0
 are precisely the eigenvalues of the matrix::
 
-    A := / -inv(M)*C  -inv(M)*K \
-         \         I          0 /
+    A := / -M⁻¹ C  -M⁻¹ K \
+         \      I       0 /
 
 so we only need to compute its eigenvalues. (This easily follows from the definition of L(s).)
 
@@ -386,7 +407,7 @@ It re-orders the eigenvalue data for different values of c, so that we can draw 
 
 Of the order-fixing algorithms discussed in [Jeronen, 2011], this library implements only the "null"
 algorithm that simply pairs off the closest points; the Taylor prediction based and modal assurance
-criterion (MAC) based algorithms are not implemented here. (Often the "null" algorithm works well enough in practice.)
+criterion (MAC) based algorithms are not implemented here. (Often the "null" algorithm works well enough.)
 
 
 **References:**
@@ -402,22 +423,21 @@ criterion (MAC) based algorithms are not implemented here. (Often the "null" alg
 
     F. Tisseur and K. Meerbergen, The quadratic eigenvalue problem, SIAM Rev., 43 (2001), pp. 235–286.
 """
-    c  = 2.   # dimensionless axial velocity
-    n  = 100  # number of elements
+    c  = 2.    # dimensionless axial velocity
+    n  = 10    # number of elements
+    Dx = 1./n  # length of one element
 
-    dx = 1./n
+    I = np.eye(n+1)
+    U = np.diag(np.ones(n), +1)
+    L = np.diag(np.ones(n), -1)
 
-    I = np.eye(n)
-    U = np.diag(np.ones(n-1), +1)
-    L = np.diag(np.ones(n-1), -1)
-
-    M =   dx/6.          * ( 4.*I + U + L )   #     phi_j  *    phi_n,   j row, n column
-    C =   c              * ( U - L )          #  (d phi_n) *    phi_j
-    K = -(c**2 - 1.)/dx  * ( 2.*I + U + L )   # -(d phi_j) * (d phi_n)
+    M =   Dx/6.          * ( 4.*I + U + L )   #  ∫ φj φn dx          (j row, n column)
+    C =   c              * ( U - L )          #  ∫ dφn/dx φj dx
+    K = -(c**2 - 1.)/Dx  * ( 2.*I + U + L )   # -∫ dφn/dx dφj/dx dx
 
     # companion form
     #
-    O    = np.zeros( (n,n) )
+    O    = np.zeros( (n+1,n+1) )
     invM = np.linalg.inv(M)
     A    = np.array( np.bmat( [[-invM.dot(C), -invM.dot(K)],
                                [           I,            O]] ) )  # bmat() returns matrix, not ndarray
@@ -432,7 +452,7 @@ criterion (MAC) based algorithms are not implemented here. (Often the "null" alg
     # computable approximation.
     #
     # For this particular problem, it is known (from the analytical solution) that  s  is always purely imaginary
-    # regardless of the value of the probelm parameter  c. (See [Jeronen, 2011].)
+    # regardless of the value of the problem parameter  c. (See [Jeronen, 2011].)
     #
     s,v = np.linalg.eig(A)
     v = v[:,n:]  # keep just the eigenvectors of the original quadratic problem
