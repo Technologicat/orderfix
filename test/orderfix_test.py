@@ -188,7 +188,7 @@ over a free span, with pinholes at x=0 and x=ℓ.
 
 The governing equation is [Skutch, 1897]::
 
-    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx = 0   (*)
+    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx = 0,   0 < x < ℓ   (*)
     w(x=0) = w(x=ℓ) = 0
 
 where the subscripts indicate partial differentiation.
@@ -226,12 +226,12 @@ where  h  is a characteristic deflection (of arbitrary value), SI unit [s].
 Solving for the original dimensional variables, plugging in the solutions to (*),
 applying (**) and (***), and then omitting the prime from the notation, we have::
 
-    (h/τ²) w_tt + (h/(τℓ)) 2 V0 w_xt + (h/ℓ²) (V0**2 - T/ρ) w_xx = 0
+    (h/τ²) w_tt + (h/(τℓ)) 2 V0 w_xt + (h/ℓ²) (V0**2 - T/ρ) w_xx = 0,   0 < x < 1
     w(x=0) = w(x=1) = 0
 
 Finally, multiplying by  τ²/h  gives the dimensionless equation::
 
-    w_tt + (2 τ/ℓ V0) w_xt + (τ²/ℓ²) (V0² - T/ρ) w_xx = 0
+    w_tt + (2 τ/ℓ V0) w_xt + (τ²/ℓ²) (V0² - T/ρ) w_xx = 0,   0 < x < 1
 
 
 The last term suggests that a convenient value for τ is obtained by choosing::
@@ -244,7 +244,7 @@ which gives::
 
 With this choice for τ, we have::
 
-    w_tt + (2 V0 / sqrt(T/ρ)) w_xt + (V0² / (T/ρ) - 1) w_xx = 0
+    w_tt + (2 V0 / sqrt(T/ρ)) w_xt + (V0² / (T/ρ) - 1) w_xx = 0,   0 < x < 1
 
 This in turn suggests that it is convenient to define a dimensionless axial velocity as::
 
@@ -252,7 +252,7 @@ This in turn suggests that it is convenient to define a dimensionless axial velo
 
 finally obtaining::
 
-    w_tt + 2 c w_xt + (c² - 1) w_xx = 0
+    w_tt + 2 c w_xt + (c² - 1) w_xx = 0,   0 < x < 1
 
 We have remaining just one problem parameter, c, which we may sweep to make a parametric study
 of this problem.
@@ -309,12 +309,15 @@ the Galerkin series for W is::
 
 where Wn are the Galerkin coefficients.
 
-Inserting this to (d), and choosing the set of test functions ψ  as the set φj, gives::
+Inserting this to (d), and (following classical Galerkin methods) choosing to use
+the set of basis functions φj as the set of test functions ψ, gives::
 
     ∫ s² (∑ Wn φn) φj dx  +  ∫ 2 c s (∑ Wn φn_x) φj dx  - ∫ (c² - 1) (∑ Wn φn_x) φj_x dx  =  0
 
 As usual, we then exchange the order of the infinite summation and integration,
 so that the integral is taken separately of each term in the Galerkin series.
+(This requires some mathematical care, but here it is fine.)
+
 Rearranging, we have::
 
     ∑ s² Wn ∫ (φn φj) dx  +  ∑ 2 c s ∫ Wn (φn_x φj) dx  - ∑ (c² - 1) ∫ Wn (φn_x φj_x) dx  =  0
@@ -326,14 +329,15 @@ Defining the mass, gyroscopic, and stiffness matrices M, C and K, we can write t
 and  v = (W1, W2, ..., W{N+1})  denotes the vector of Galerkin coefficients.
 
 Using a uniform grid of  N  linear elements, with affine coordinate mapping
-from the reference (local) element [0,1] to each global element, the matrices are::
+from the reference (local) element [0,1] to each actual ("global") element,
+the matrices are::
 
     M = M2
     C = 2 c M1
     K = (c² - 1) M0
 
-where  Δx = 1/N  is the length of one global element, and the generic matrices
-for uniformly spaced linear elements in 1D are::
+where  Δx = 1/N  is the length of one element in units of dimensionless x',
+and the generic matrices for uniformly spaced linear elements in 1D are::
 
     M2 =  Δx/6 * ( 4 I + U + L )  #  ∫ φn φj dx          (j row, n column)
     M1 =  1/2  * ( U - L )        #  ∫ dφn/dx φj dx
@@ -352,7 +356,7 @@ In M1, the factors of Δx cancel. These are introduced by the change of variable
 in the integral (always computing it over the reference element).
 Integration introduces a factor of Δx, whereas differentiation introduces 1/Δx.
 
-The size of each matrix is (N+1)×(N+1), because for N elements, there are N+1
+The size of each matrix is (N+1)×(N+1), because for N linear elements, there are N+1
 global basis functions, including the two for the endpoints of the domain.)
 
 The final result is
@@ -391,32 +395,52 @@ are precisely the eigenvalues of the matrix::
     A := / -M⁻¹ C  -M⁻¹ K \
          \      I       0 /
 
-so we only need to compute its eigenvalues. (This easily follows from the definition of L(s).)
+so we only need to compute its eigenvalues. This easily follows from the definition of L(s).
+Consider the equation  L(s) z = 0  and rearrange terms::
 
+    - /  C K \ z = s / M 0 \ z
+      \ -I 0 /       \ 0 I /
 
-In practice, we hand the matrix A over to NumPy, and obtain its eigenvalues, in a random order for each value
-of the problem parameter c.
+Take the minus sign on the LHS into the matrix:
+
+    / -C -K \ z = s / M 0 \ z       (e)
+    \  I  0 /       \ 0 I /
+
+Multiply from the left by the block matrix  diag( M⁻¹, I ).  Obtain::
+
+    A z = s z   (f)
+
+Hence the eigenfrequencies s are the eigenvalues of the matrix A.
+
+(Equivalently, we could solve the generalized linear eigenvalue problem for equation (e), above;
+that would probably be numerically more stable, and need less flops for large N.
+
+Note that numpy.linalg.eig() solves (f), but not (e); for that we need scipy.linalg.eig().
+To avoid pulling in SciPy, we cast the problem into the form (f).)
 
 
 **Now, finally:**
 
+In practice, we hand the matrix A over to NumPy, and obtain its eigenvalues, in a random order for each value
+of the problem parameter c.
+
 **This** is the problem that `orderfix` solves:
 
-    `orderfix` re-orders the eigenvalue data for different values of c, so that we can draw connected curves as we vary c,
-    by simply connecting the points in the same column in the re-ordered data.
+    `orderfix` re-orders the eigenvalue data for different values of c, so that we can draw connected curves
+    as we vary c, by simply connecting the points in the same column in the re-ordered data.
 
 Of the order-fixing algorithms discussed in [Jeronen, 2011], this library implements only the "null"
 algorithm that simply pairs off the closest points. The Taylor prediction based and modal assurance
 criterion (MAC) based algorithms are not implemented here. (Often the "null" algorithm works well enough.)
 
 
-**Generalization of the model:**
+**Generalizing the model:**
 
-It is easy to generalize this model to the case of the ideal string with internal damping [Jeronen, 2011].
+It is easy to account also for the case of the ideal string with internal damping [Jeronen, 2011].
 
-The problem now reads::
+The original PDE problem now reads::
 
-    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx + α/ρ (w_t + V0 w_x) = 0
+    w_tt + 2 V0 w_xt + (V0² - T/ρ) w_xx + α/ρ (w_t + V0 w_x) = 0,   0 < x < ℓ
     w(x=0) = w(x=ℓ) = 0
 
 where α is an empirical damping coefficient describing, e.g., viscous losses inside the string material.
@@ -491,11 +515,11 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
 
     F. Tisseur and K. Meerbergen, The quadratic eigenvalue problem, SIAM Rev., 43 (2001), pp. 235–286.
 """
-    c  = 2.      # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
+    c    = 2.    # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
     beta = 0.    # dimensionless damping coefficient
 
-    n  = 10      # number of elements for FEM
-    Dx = 1./n    # length of one element, in units of global dimensionless x'
+    n    = 10    # number of elements for FEM
+    Dx   = 1./n  # length of one element, in units of global dimensionless x'
 
     # building blocks for uniformly spaced linear elements in 1D
     I = np.eye(n+1)
@@ -514,6 +538,8 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
 
     # companion form
     #
+    # (formulate as a standard linear eigenvalue problem to avoid the need for SciPy's generalized linear eigenvalue problem solver)
+    #
     O    = np.zeros_like(I)
     invM = np.linalg.inv(M)
     A    = np.array( np.bmat( [[-invM.dot(C), -invM.dot(K)],
@@ -528,8 +554,10 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     # that the spectrum is countably infinite, and we are truncating the Galerkin series to produce a
     # computable approximation.
     #
-    # For this particular problem, it is known (from the analytical solution) that  s  is always purely imaginary
-    # regardless of the value of the problem parameter  c. (See [Jeronen, 2011].)
+    # For the particular problem of the classical (undamped) axially moving ideal string,
+    # it is known (from the analytical solution) that  s  is always purely imaginary
+    # regardless of the value of the problem parameter  c. For analytical solutions
+    # of both problems discussed here, see [Jeronen, 2011].
     #
     s,v = np.linalg.eig(A)
     v = v[:,n:]  # keep just the eigenvectors of the original quadratic problem
