@@ -177,6 +177,104 @@ Parameters:
         s_old = s  # only a reference!
 
 
+# ------------------------------------------------------------------------------------------------
+
+
+# analytical representation of Lobatto basis matrices (see test/legtest3.py in pydgq)
+#
+# note that we don't need to evaluate the actual basis functions for solving the eigenfrequency spectrum,
+# so they are not provided here.
+#
+class LobattoBasisMatrices(object):
+    def __init__(self, q):
+        if q < 1:
+            raise ValueError("This implementation only supports polynomial degrees q >= 1")
+        self.q = q
+        self.build_K()
+        self.build_C()
+        self.build_M()
+
+    # stiffness matrix, integrand N' * N'
+    def build_K(self):
+        q = self.q
+        n = q+1
+
+        K = np.eye( n, dtype=np.float64 )
+        K[0,0] =  1./2.
+        K[0,1] = -1./2.
+        K[1,0] = -1./2.
+        K[1,1] =  1./2.
+
+        self.K = K
+
+    # damping or gyroscopic matrix, integrand N' * N
+    def build_C(self):
+        q = self.q
+        n = q+1
+
+        C = np.zeros( (n,n), dtype=np.float64 )
+        C[0,0] = -1./2.
+        C[0,1] =  1./2.
+        C[1,0] = -1./2.
+        C[1,1] =  1./2.
+
+        if q >= 2:
+            t = 1./np.sqrt(6.)
+            C[0,2] = -t
+            C[1,2] =  t
+            C[2,0] =  t
+            C[2,1] = -t
+
+        # General formula for C_ji for j,i >= 2.
+        for j in range(2,n):
+            i = j + 1  # i-1 = j  <=>  i = j+1
+            if i >= 2 and i < n:
+                C[j,i] =  2. * np.sqrt( 1. / ( ( 2.*j - 1. ) * ( 2.*j + 1. ) ) )
+            i = j - 1  # i+1 = j  <=>  i = j-1
+            if i >= 2 and i < n:
+                C[j,j-1] = -2. * np.sqrt( 1. / ( ( 2.*j - 1. ) * ( 2.*j - 3. ) ) )
+
+        self.C = C
+
+    # mass matrix, integrand N * N
+    def build_M(self):
+        q = self.q
+        n = q+1
+
+        M = np.zeros( (n,n), dtype=np.float64 )
+        M[0,0] = 2./3.
+        M[0,1] = 1./3.
+        M[1,0] = 1./3.
+        M[1,1] = 2./3.
+        if q >= 2:
+            t = 1./np.sqrt(2.)
+            M[0,2] = -t
+            M[1,2] = -t
+            M[2,0] = -t
+            M[2,1] = -t
+        if q >= 3:
+            t = 1. / (3. * np.sqrt(10) )
+            M[0,3] = -t
+            M[1,3] =  t
+            M[3,0] = -t
+            M[3,1] =  t
+
+        # General formula for M_ji for j,i >= 2.
+        for j in range(2,n):
+            M[j,j]   = 1. / (2.*j - 1.) * ( 1. / (2.*j + 1.)  +  1. / (2.*j - 3.) )
+            i = j - 2  # i+2 = j  <=>  i = j-2
+            if i >= 2 and i < n:
+                M[j,i] = 1. / ( np.sqrt(2.*j - 5.) * (2.*j - 3.) * np.sqrt(2.*j - 1.) )
+            i = j + 2  # i-2 = j  <=>  i = j+2
+            if i >= 2 and i < n:
+                M[j,i] = 1. / ( np.sqrt(2.*j - 1.) * (2.*j + 1.) * np.sqrt(2.*j + 3.) )
+
+        self.M = M
+
+# ------------------------------------------------------------------------------------------------
+
+
+
 def moving_ideal_string():
     """Usage example.
 
@@ -551,7 +649,8 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     n    = 100    # number of elements for FEM
     Dx   = 1./n   # if using linear elements: length of one element, in units of global dimensionless x'
 
-    n_vis = 20     # how many (lowest by magnitude) eigenfrequencies to draw
+    n_vis = 6     # how many (lowest by magnitude) eigenfrequencies to draw.
+                  # Note that they come in pairs.
 
 
 #    # uniformly spaced linear elements
@@ -564,41 +663,64 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
 #    M0 = -1./Dx * ( 2.*I + U + L )  # -∫ dφn/dx dφj/dx dx
 
 
-    # Fourier basis, φk = sin(k π x),  k = 1, 2, ...   (as in [Jeronen, 2011])
-    #
-    # These basis functions have support on all of 0 < x < 1, but they are L²-orthogonal, leading to M2 and M0 being diagonal.
-    # M1 will be dense (50% fill) and skew-symmetric.
-    #
-    # To compute the matrices symbolically, use this:
-    #
-    # from sympy import symbols, pi, sin, cos, integrate, diff, pprint
-    # n,j = symbols('n,j', integer=True, positive=True)
-    # x   = symbols('x', real=True)
-    # M2 =  integrate( sin(n*pi*x) * sin(j*pi*x), (x, 0, 1) )
-    # M1 =  integrate( diff(sin(n*pi*x),x) * sin(j*pi*x), (x, 0, 1) )
-    # M0 = -integrate( diff(sin(n*pi*x),x) * diff(sin(j*pi*x),x), (x, 0, 1) )
-    # for M in (M2,M1,M0):
-    #     print(M)
-    #     pprint(M)
+#    # Fourier basis, φk = sin(k π x),  k = 1, 2, ...   (as in [Jeronen, 2011])
+#    #
+#    # This is a spectral basis that has only one element spanning the whole domain.
+#    #
+#    # Each basis function satisfies the BCs  w(0) = w(1) = 0.
+#    #
+#    # These basis functions have support on all of 0 < x < 1, but they are L²-orthogonal, leading to M2 and M0 being diagonal.
+#    # M1 will be dense (50% fill) and skew-symmetric.
+#    #
+#    # To compute the matrices symbolically:
+#    #
+#    # from sympy import symbols, pi, sin, cos, integrate, diff, pprint
+#    # n,j = symbols('n,j', integer=True, positive=True)
+#    # x   = symbols('x', real=True)
+#    # M2 =  integrate( sin(n*pi*x) * sin(j*pi*x), (x, 0, 1) )
+#    # M1 =  integrate( diff(sin(n*pi*x),x) * sin(j*pi*x), (x, 0, 1) )
+#    # M0 = -integrate( diff(sin(n*pi*x),x) * diff(sin(j*pi*x),x), (x, 0, 1) )
+#    # for M in (M2,M1,M0):
+#    #     print(M)
+#    #     pprint(M)
+#
+#    # Piecewise((1/2, Eq(j, n)), (0, True))
+#    #
+#    M2 = np.diag( 1./2. * np.ones(n) )
+#
+#    # -pi*n*Piecewise((0, Eq(j, n)), (-j/(pi*j**2 - pi*n**2), True)) + pi*n*Piecewise((0, Eq(j, n)), (-(-1)**j*(-1)**n*j/(pi*j**2 - pi*n**2), True))
+#    #
+#    jj  = np.arange(1,n+1)  # in the formula, n and j are 1-based
+#    nn  = np.arange(1,n+1)
+#    J,N = np.meshgrid(jj,nn, indexing='ij')   # row,column of each matrix element, 1-based
+#    with np.errstate(divide='ignore', invalid='ignore'):  # we handle the diagonal separately afterward
+#        M1 = J * N * ( 1. - (-1.)**J * (-1.)**N ) / ( J**2 - N**2 )
+#    np.fill_diagonal(M1, 0)
+#
+#    # -pi**2*j*n*Piecewise((1/2, Eq(j, n)), (0, True))
+#    #
+#    M0 = -np.diag( 1./2. * np.pi**2 * np.arange(1,n+1)**2 )
+#
+#    I = np.eye(n)
 
-    # Piecewise((1/2, Eq(j, n)), (0, True))
-    #
-    M2 = np.diag( 1./2. * np.ones(n) )
 
-    # -pi*n*Piecewise((0, Eq(j, n)), (-j/(pi*j**2 - pi*n**2), True)) + pi*n*Piecewise((0, Eq(j, n)), (-(-1)**j*(-1)**n*j/(pi*j**2 - pi*n**2), True))
+    # hierarchical polynomial basis (Lobatto basis)
     #
-    jj  = np.arange(1,n+1)  # in the formula, n and j are 1-based
-    nn  = np.arange(1,n+1)
-    J,N = np.meshgrid(jj,nn, indexing='ij')   # row,column of each matrix element, 1-based
-    with np.errstate(divide='ignore', invalid='ignore'):  # we handle the diagonal separately afterward
-        M1 = J * N * ( 1. - (-1.)**J * (-1.)**N ) / ( J**2 - N**2 )
-    np.fill_diagonal(M1, 0)
-
-    # -pi**2*j*n*Piecewise((1/2, Eq(j, n)), (0, True))
+    # We use only one element spanning the whole domain, with user-definable polynomial order,
+    # which places this approach somewhere between spectral methods and p-FEM.
     #
-    M0 = -np.diag( 1./2. * np.pi**2 * np.arange(1,n+1)**2 )
+    basis = LobattoBasisMatrices(n)
+    M2 =  0.5 * basis.M  # the reference element of this basis is [-1,1], ours is [0,1]  ⇒  effectively, Δx = 1/2
+    M1 =        basis.C
+    M0 = -2.  * basis.K
 
-    I = np.eye(n)
+    # By the BCs  w(0) = w(1) = 0,  the endpoint DOFs are zero, so remove those rows/columns.
+    # All other DOFs are bubbles, which satisfy the BCs.
+    #
+    M2 = M2[2:,2:]
+    M1 = M1[2:,2:]
+    M0 = M0[2:,2:]
+    I = np.eye(M0.shape[0])
 
 
     # our mass, gyroscopic+damping and stiffness matrices
@@ -708,8 +830,8 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     s_analytical[2*k + 1] = (c**2 - 1.) * (beta/2. - tmp)
 
 
-    print(s_analytical[:n_vis])
-    print(s[:n_vis])
+    print("exact:", s_analytical[:n_vis], sep="\n")
+    print("numerical:", s[:n_vis], sep="\n")
 
     import matplotlib.pyplot as plt
     plt.figure(1)
