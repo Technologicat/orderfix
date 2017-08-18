@@ -217,6 +217,8 @@ for datadir in datadirs:
     datafiles.extend( [(root, [os.path.join(root, f) for f in files if getext(f) in dataexts])
                        for root, dirs, files in os.walk(datadir)] )
 
+# Add example figure to data files
+datafiles.append( ('.', ["example.png"]) )
 
 # Add standard documentation (README et al.), if any, to data files
 #
