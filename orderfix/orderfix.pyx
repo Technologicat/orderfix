@@ -1,4 +1,15 @@
 # -*- coding: utf-8 -*-
+#
+# Set Cython compiler directives. This section must appear before any code!
+#
+# For available directives, see:
+#
+# http://docs.cython.org/en/latest/src/reference/compilation.html
+#
+# cython: wraparound  = False
+# cython: boundscheck = False
+# cython: cdivision   = True
+#
 """Reorder solutions of parametric studies (assumed to be in random order) to make continuous curves.
 
 The common use case is postprocessing for computing eigenvalues for parametric studies of linear PDE boundary-value problems.
@@ -7,21 +18,20 @@ The ordering of the numerically computed eigenvalues may suddenly change, as the
 The reordering allows the plotting of continuous curves, which are much more readable visually than scatterplots of disconnected points.
 """
 
-from __future__ import division
+from __future__ import division, print_function, absolute_import
 
 import cython
 
 import numpy as np
-cimport numpy as np
 
 
 # real
 DTYPE = np.float64
-ctypedef np.float64_t DTYPE_t
+ctypedef double DTYPE_t
 
 # complex
 DTYPEZ = np.complex128
-ctypedef np.complex128_t DTYPEZ_t
+ctypedef double complex DTYPEZ_t
 
 cdef extern from "math.h":
     # fpclassify is actually a macro, so it does not have a specific input type.
@@ -52,9 +62,7 @@ cdef extern from "complex.h":
 #
 # n = length of data (length of pused must match).
 #
-@cython.boundscheck(False)
-@cython.wraparound(False)
-cdef int argmin_next( double* data, int n, np.uint8_t* pused ) nogil:
+cdef int argmin_next( double* data, int n, unsigned char* pused ) nogil:
     cdef unsigned int k, start
 
     cdef int arg = -1     # result (index to data)
@@ -118,9 +126,7 @@ cdef int argmin_next( double* data, int n, np.uint8_t* pused ) nogil:
     return arg
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def fix_ordering( np.ndarray[DTYPEZ_t,ndim=2] ss ):
+def fix_ordering( DTYPEZ_t[:,::1] ss ):
     """Reorder solutions (assumed to be in random order) to make continuous solution curves.
 
     This is needed for eigenvalue problems also when expressed in polynomial form; the ordering of the roots may suddenly change.
@@ -133,19 +139,17 @@ def fix_ordering( np.ndarray[DTYPEZ_t,ndim=2] ss ):
 
     Returns:
         None; the input array is modified in-place.
-
-    """
-    sh = np.shape(ss)
-    cdef unsigned int nstep = sh[0]  # number of problem parameter steps
-    cdef unsigned int ns    = sh[1]  # number of solutions at one value of lambda
+"""
+    cdef unsigned int nstep = ss.shape[0]  # number of problem parameter steps
+    cdef unsigned int ns    = ss.shape[1]  # number of solutions at one value of problem parameter
 
     # temporaries for the inner loop
-    cdef np.ndarray[DTYPEZ_t,ndim=1]  s      = np.empty( [ns,], dtype=DTYPEZ )
-    cdef np.ndarray[DTYPEZ_t,ndim=1]  s_new  = np.empty( [ns,], dtype=DTYPEZ )
-    cdef np.ndarray[DTYPEZ_t,ndim=1]  s_old  = np.empty( [ns,], dtype=DTYPEZ )
-    cdef np.ndarray[DTYPE_t,ndim=1]   sqdist = np.empty( [ns,], dtype=DTYPE  )
+    cdef DTYPEZ_t[::1] s         = np.empty( [ns,], dtype=DTYPEZ )
+    cdef DTYPEZ_t[::1] s_new     = np.empty( [ns,], dtype=DTYPEZ )
+    cdef DTYPEZ_t[::1] s_old     = np.empty( [ns,], dtype=DTYPEZ )
+    cdef DTYPE_t[::1]  sqdist    = np.empty( [ns,], dtype=DTYPE )
     # http://stackoverflow.com/questions/18058744/passing-a-numpy-pointer-dtype-np-bool-to-c
-    cdef np.ndarray[np.uint8_t,ndim=1] used  = np.empty( [ns,], dtype=np.uint8  )
+    cdef unsigned char[::1] used = np.empty( [ns,], dtype=np.uint8  )
     cdef DTYPEZ_t distvec
 
     cdef unsigned int i, j, k, m
@@ -195,30 +199,33 @@ def fix_ordering( np.ndarray[DTYPEZ_t,ndim=2] ss ):
                                      # (note: faster to copy data than grab PyObject reference)
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def fix_ordering_with_degenerate( np.ndarray[DTYPEZ_t,ndim=2] ss ):
+def fix_ordering_with_degenerate( DTYPEZ_t[:,::1] ss ):
     """Reorder solutions (assumed to be in random order) to make continuous solution curves.
 
     This is needed for eigenvalue problems also when expressed in polynomial form; the ordering of the roots may suddenly change.
 
-    This version accounts for the possibility of degenerate problem instances having fewer than the usual number of solutions
-    (with the extra slots filled by placeholder NaNs). A mixed input with some normal and some degenerate instances is allowed.
+    This version accounts for the possibility of degenerate problem instances having fewer than the usual number of solutions,
+    with the empty slots filled by placeholder NaNs. A mixed input with some normal and some degenerate instances is allowed.
     Any degenerate data is simply left as NaNs.
 
-    """
-    sh = np.shape(ss)
-    cdef unsigned int nstep = sh[0]  # number of problem parameter steps
-    cdef unsigned int ns    = sh[1]  # (maximum possible) number of solutions at one value of lambda, i.e. the degree of the non-degenerate characteristic polynomial
+    Parameters:
+        ss = rank-2 np.array. First index indexes the values of the problem parameter;
+             second index indexes solutions at each value of the problem parameter.
+
+    Returns:
+        None; the input array is modified in-place.
+"""
+    cdef unsigned int nstep = ss.shape[0]  # number of problem parameter steps
+    cdef unsigned int ns    = ss.shape[1]  # number of solutions at one value of problem parameter, i.e. usually the degree of the non-degenerate characteristic polynomial
 
     # temporaries for the inner loop
-    cdef np.ndarray[DTYPEZ_t,ndim=1]  s         = np.empty( [ns,], dtype=DTYPEZ )
-    cdef np.ndarray[DTYPEZ_t,ndim=1]  s_new     = np.empty( [ns,], dtype=DTYPEZ )
-    cdef np.ndarray[DTYPEZ_t,ndim=1]  s_old     = np.empty( [ns,], dtype=DTYPEZ )
-    cdef np.ndarray[DTYPE_t,ndim=1]   sqdist    = np.empty( [ns,], dtype=DTYPE  )
+    cdef DTYPEZ_t[::1] s            = np.empty( [ns,], dtype=DTYPEZ )
+    cdef DTYPEZ_t[::1] s_new        = np.empty( [ns,], dtype=DTYPEZ )
+    cdef DTYPEZ_t[::1] s_old        = np.empty( [ns,], dtype=DTYPEZ )
+    cdef DTYPE_t[::1]  sqdist       = np.empty( [ns,], dtype=DTYPE )
     # http://stackoverflow.com/questions/18058744/passing-a-numpy-pointer-dtype-np-bool-to-c
-    cdef np.ndarray[np.uint8_t,ndim=1] used     = np.empty( [ns,], dtype=np.uint8  )  # indices in s     which have already been matched    at the current step
-    cdef np.ndarray[np.uint8_t,ndim=1] written  = np.empty( [ns,], dtype=np.uint8  )  # indices in s_new which have already been written to at the current step
+    cdef unsigned char[::1] used    = np.empty( [ns,], dtype=np.uint8  )  # indices in s     which have already been matched    at the current step
+    cdef unsigned char[::1] written = np.empty( [ns,], dtype=np.uint8  )  # indices in s_new which have already been written to at the current step
     cdef DTYPEZ_t distvec
 
     cdef unsigned int i, j, k, m
@@ -274,7 +281,6 @@ def fix_ordering_with_degenerate( np.ndarray[DTYPEZ_t,ndim=2] ss ):
     #  which here is the loading parameter.)
     #
     s_old[:] = ss[0,:]  # slightly faster than looping over j
-    rg = np.arange(ns, dtype=int)  # TODO
     with nogil:
         for m in range(1,nstep):
             for j in range(ns):
