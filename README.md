@@ -14,7 +14,7 @@ The reordering allows the plotting of continuous curves, which are much more rea
 The simple distance-based algorithm implemented here may fail in regions where the solutions cluster closely together,
 but for the most part of the data, it usually works well.
 
-For a discussion of this issue and some more algorithms, see Jeronen (2011), On the mechanical stability and out-of-plane dynamics of a travelling panel submerged in axially flowing ideal fluid: a study into paper production in mathematical terms, Jyväskylä Studies in Computing 148, University of Jyväskylä. [ISBN 978-951-39-4596-1](http://urn.fi/URN:ISBN:978-951-39-4596-1)
+For a discussion of this issue and some more algorithms, see _Jeronen (2011), On the mechanical stability and out-of-plane dynamics of a travelling panel submerged in axially flowing ideal fluid: a study into paper production in mathematical terms, Jyväskylä Studies in Computing 148, University of Jyväskylä, [ISBN 978-951-39-4596-1](http://urn.fi/URN:ISBN:978-951-39-4596-1)_.
 
 
 ## Usage summary
