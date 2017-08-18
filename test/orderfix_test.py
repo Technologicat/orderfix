@@ -9,12 +9,16 @@ The reordering allows the plotting of continuous curves, which are much more rea
 
 from __future__ import division, print_function, absolute_import
 
+import time
+
 import numpy as np
+
+import orderfix
 
 
 # SLOW reference implementation, for testing the fast Cython implementation.
 #
-def fix_ordering( ss ):
+def slow_fix_ordering( ss ):
     """Reorder polynomial roots (assumed to be in random order) to make continuous curves.
 
 This version assumes there are ss.shape[1] valid roots on each row of ss.
@@ -45,7 +49,7 @@ Parameters:
         # "null" algorithm in flutter_plot.m.
         #
         free[:] = True
-        for j in xrange(ns):
+        for j in range(ns):
             # We compare the old jth value against all new values.
             #
             # Note that np.absolute(z) is faster, with fewer Python operations than z*np.conj(z).
@@ -63,7 +67,7 @@ Parameters:
 
 # SLOW reference implementation, for testing the fast Cython implementation.
 #
-def fix_ordering_with_degenerate( ss ):
+def slow_fix_ordering_with_degenerate( ss ):
     """Reorder polynomial roots (assumed to be in random order) to make continuous curves.
 
 This version accounts for the possibility of degenerate problem instances (lower-degree polynomials),
@@ -140,7 +144,7 @@ Parameters:
         written   = []  # indices in s_new which have been used
 
         free[:] = True
-        for j in xrange(ns):
+        for j in range(ns):
             # if this solution at the previous step is NaN, skip trying to match it
             if np.isnan(s_old[j]):
                 continue
@@ -178,7 +182,41 @@ Parameters:
 
 
 # ------------------------------------------------------------------------------------------------
+# support stuff for the test / usage example
+# ------------------------------------------------------------------------------------------------
 
+# for initial reordering of solutions at the first value of the problem parameter in the sweep
+#
+def sort_by_magnitude(z):
+    zmag = np.abs(z)
+    p    = np.argsort(zmag)
+    return z[p]
+
+# for benchmarking
+#
+# usage:
+#
+#    with SimpleTimer(label=("    stuff done in ")) as s:
+#        do_stuff()
+#
+#    with SimpleTimer(label=("    %d reps done in " % reps), n=reps) as s:
+#        for k in range(reps):
+#            do_stuff()
+#
+class SimpleTimer:
+    def __init__(self, label="", n=None):
+        self.label = label
+        self.n     = n      # number of repetitions done inside the "with..." section (for averaging in timing info)
+
+    def __enter__(self):
+        self.t0 = time.time()
+        return self
+
+    def __exit__(self, errtype, errvalue, traceback):
+        dt         = time.time() - self.t0
+        identifier = ("%s" % self.label) if len(self.label) else "time taken: "
+        avg        = (", avg. %gs per run" % (dt/self.n)) if self.n is not None else ""
+        print( "%s%gs%s" % (identifier, dt, avg) )
 
 # analytical representation of Lobatto basis matrices (see test/legtest3.py in pydgq)
 #
@@ -271,12 +309,118 @@ class LobattoBasisMatrices(object):
 
         self.M = M
 
+
+# ------------------------------------------------------------------------------------------------
+# test / usage example
 # ------------------------------------------------------------------------------------------------
 
-
-
 def moving_ideal_string():
-    """Usage example.
+    """Usage example, controller."""
+
+    # ------------------------------------------
+    # Generate test data
+    # ------------------------------------------
+
+    # How many eigenfrequency pairs to handle.
+    n_vis_pairs = 3
+    n_vis = 2*n_vis_pairs  # how many eigenfrequencies
+
+    cs = np.linspace(0.9, 1.1, 401)
+
+    s_numerical, s_analytical = moving_ideal_string_solve_one(cs[0])
+
+    # At the first value of c, sort the numerical solutions by magnitude,
+    # to have them in a reasonable order.
+    #
+    s_numerical = sort_by_magnitude( s_numerical )
+
+    ss  = np.empty( (cs.shape[0], s_numerical.shape[0]), dtype=np.complex128 )
+    ssa = np.empty_like(ss)  # this test doesn't actually use the analytical results
+    ss[0,:] = s_numerical
+    ssa[0,:] = s_analytical
+
+    print( "Solving..." )
+    with SimpleTimer(label=("    solve took ")) as s:
+        for i,c in enumerate(cs[1:]):
+            s_numerical, s_analytical = moving_ideal_string_solve_one(c)
+            ss[i+1,:] = s_numerical
+            ssa[i+1,:] = s_analytical
+
+    # ------------------------------------------
+    # Test and benchmark orderfix
+    # ------------------------------------------
+
+    print( "Testing and benchmarking..." )
+
+    ss_reordered_python = ss.copy()
+    with SimpleTimer(label=("    Python version took ")) as s:
+        slow_fix_ordering(ss_reordered_python)
+
+    ss_reordered_cython = ss.copy()
+    with SimpleTimer(label=("    Cython version took ")) as s:
+        orderfix.fix_ordering(ss_reordered_cython)
+
+    if np.allclose(ss, ss_reordered_cython):
+        from sys import stderr
+        print("WARNING: raw solutions already in order, test result will not be reliable", file=sys.stderr)
+
+    assert np.allclose(ss_reordered_python, ss_reordered_cython), "*** FAIL ***: Python and Cython implementations produced different results"
+    print("*** PASS ***: Results from Python and Cython versions match")
+
+    # Print results.
+    #
+    print( "First 8 data items at last 5 c-steps:" )
+    print( "raw data:",  ss[-5:, :8], sep='\n' )
+    print( "reordered:", ss_reordered_cython[-5:, :8], sep='\n' )
+
+    # Plot if Matplotlib available.
+    #
+    # Take the result with a grain of salt - typically only half the returned solutions are actually approximations of solutions of the continuum problem;
+    # the rest are artifacts caused by the discretization. (To see this, compare to the analytical solution.)
+    #
+    try:
+        import matplotlib.pyplot as plt
+        plt.figure(1)
+        plt.clf()
+
+        plt.subplot(1,2, 1)
+        plt.plot( cs, np.real(ss), color='#c0c0c0', linestyle='solid' )             # unordered mess
+        plt.plot( cs, np.real(ss_reordered_cython), color='k', linestyle='solid' )  # nice, connected lines
+        plt.xlabel(r'$c$')
+        plt.ylabel(r'$\mathrm{Re}\;s$')
+
+        ax = plt.subplot(1,2, 2)
+        plt.plot( cs, np.imag(ss), color='#c0c0c0', linestyle='solid' )             # unordered mess
+        plt.plot( cs, np.imag(ss_reordered_cython), color='k', linestyle='solid' )  # nice, connected lines (except maybe near the critical point, where better reordering algorithms are needed)
+        plt.axis( [cs[0], cs[-1], -10, 10] )
+        plt.xlabel(r'$c$')
+        plt.ylabel(r'$\mathrm{Im}\;s$')
+        ax.yaxis.set_label_position("right")
+
+        plt.suptitle(r"Dimensionless complex eigenvalues $s$ of an axially moving ideal string")
+
+        plt.show()
+
+    except ImportError:
+        pass
+
+
+def moving_ideal_string_solve_one(c):
+    """Usage example, solver.
+
+    Parameters:
+        c: float
+            Dimensionless axial drive velocity (sensible range 0...1+ϵ)
+
+    Returns:
+        tuple of rank-1 np.arrays (s_numerical, s_analytical), where:
+            s_numerical: rank-1 np.array of complex128
+                Numerically computed eigenfrequencies, in random order.
+                This is used as the data in the usage example of orderfix.
+
+            s_analytical: rank-1 np.array of complex128
+                Analytically computed eigenfrequencies, ordered by mode number.
+                This is a reference solution, usually not available for realistic problems.
 
 
 **Long** explanation (with some utf-8 math thrown in):
@@ -642,15 +786,12 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
 
     F. Tisseur and K. Meerbergen, The quadratic eigenvalue problem, SIAM Rev., 43 (2001), pp. 235–286.
 """
-    c     = 0.2   # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
+#    c     = 0.2   # dimensionless axial velocity (sensible range 0...1+ϵ; undamped string has its critical velocity at c=1)
     beta  = 1.    # dimensionless damping coefficient
     delta = 0.    # dimensionless elastic foundation coefficient
 
-    n    = 100    # number of elements for FEM
+    n    = 20     # number of elements for FEM
     Dx   = 1./n   # if using linear elements: length of one element, in units of global dimensionless x'
-
-    n_vis = 6     # how many (lowest by magnitude) eigenfrequencies to draw.
-                  # Note that they come in pairs.
 
 
 #    # uniformly spaced linear elements
@@ -772,12 +913,14 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
 
         return zr + 1j*zi
 
-    def sort_by_magnitude(z):
-        zmag = np.abs(z)
-        p    = np.argsort(zmag)
-        return z[p]
+#    def sort_by_magnitude(z):
+#        zmag = np.abs(z)
+#        p    = np.argsort(zmag)
+#        return z[p]
 
-    s = sort_by_magnitude(kill_almost_zeros(s))
+    # to test orderfix, we don't want to sort here
+#    s = sort_by_magnitude(kill_almost_zeros(s))
+    s = kill_almost_zeros(s)
 
 
     # For comparison: analytical solution.
@@ -823,23 +966,28 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     #
     #           s* ← (c² - 1) [ β/2 ± sqrt(  (1/4) ( β² (1 - c²) - 4 δ ) - k² π²  ) ]
     #
-    s_analytical = np.empty( (2*n,), dtype=np.complex128 )
-    k = np.arange(n)
+    npairs = s.shape[0] // 2
+    s_analytical = np.empty( (2*npairs,), dtype=np.complex128 )
+    k = np.arange(npairs)
     tmp = np.sqrt( 0j + (1./4.) * ( beta**2 * (1. - c**2) - 4.*delta ) - (k+1)**2 * np.pi**2  )  # 0j+...: force complex input to sqrt()
     s_analytical[2*k]     = (c**2 - 1.) * (beta/2. + tmp)
     s_analytical[2*k + 1] = (c**2 - 1.) * (beta/2. - tmp)
 
+#    # DEBUG
+#    n_vis = 6
+#    print("exact:", s_analytical[:n_vis], sep="\n")
+#    print("numerical:", s[:n_vis], sep="\n")
 
-    print("exact:", s_analytical[:n_vis], sep="\n")
-    print("numerical:", s[:n_vis], sep="\n")
+#    # DEBUG
+#    import matplotlib.pyplot as plt
+#    plt.figure(1)
+#    plt.plot( np.real(s[:n_vis]), np.imag(s[:n_vis]), 'ko' )
+#    plt.plot( np.real(s_analytical[:n_vis]), np.imag(s_analytical[:n_vis]), 'bo', alpha=0.5 )
+#    plt.xlabel( r'$\mathrm{Re}\,s$' )
+#    plt.ylabel( r'$\mathrm{Im}\,s$' )
+#    plt.show()
 
-    import matplotlib.pyplot as plt
-    plt.figure(1)
-    plt.plot( np.real(s[:n_vis]), np.imag(s[:n_vis]), 'ko' )
-    plt.plot( np.real(s_analytical[:n_vis]), np.imag(s_analytical[:n_vis]), 'bo', alpha=0.5 )
-    plt.xlabel( r'$\mathrm{Re}\,s$' )
-    plt.ylabel( r'$\mathrm{Im}\,s$' )
-    plt.show()
+    return (s, s_analytical)
 
 
 def test():
