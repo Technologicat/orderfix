@@ -52,7 +52,7 @@ SHORTDESC="reorder solutions of parametric studies to make continuous curves"
 #
 DESC="""Reorder solutions of parametric studies (assumed to be in random order) to make continuous curves.
 
-The common use case is postprocessing for computing eigenvalues for parametric studies of linear PDE boundary-value problems.
+The common use case is postprocessing of numerically computed eigenvalues from parametric studies of linear PDE boundary-value problems.
 The ordering of the numerically computed eigenvalues may suddenly change, as the problem parameter sweeps through the range of interest.
 
 The reordering allows the plotting of continuous curves, which are much more readable visually than scatterplots of disconnected points.
