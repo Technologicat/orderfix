@@ -25,7 +25,7 @@ import orderfix
 orderfix.fix_ordering(data)
 ```
 
-See [`test.py`](test/test.py) for a usage example, complete with test data generation.
+See [`orderfix_test.py`](test/orderfix_test.py) for a usage example, complete with test data generation.
 
 
 ## Installation
