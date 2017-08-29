@@ -882,8 +882,6 @@ Analytical solutions (including the case with damping) are provided in [Jeronen,
     A    = np.array( np.bmat( [[-invM.dot(C), -invM.dot(K)],
                                [           I,            O]] ), dtype=np.complex128 )  # bmat() returns matrix, not ndarray. We also want to force complex dtype.
 
-    # TODO: vary c in a loop, save results to array, run orderfix on them
-
     # Solve the companion form.
     #
     # Note that half the solutions will be correct (approximations of solutions of the original continuum problem),
